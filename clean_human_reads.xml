@@ -1,0 +1,95 @@
+<tool id="ena_reads_clean" name="Clean Human reads from raw data" version="0.1" python_template_version="3.5">
+  <requirements>
+    <requirement type="package" version="2.29.2">bedtools</requirement>
+    <requirement type="package" version="">samtools</requirement>
+    <requirement type="package" version="">trim-galore</requirement>
+    <requirement type="package" version="0.7.17">bwa</requirement>
+  </requirements>
+  <command detect_errors="exit_code"><![CDATA[
+#import os
+#import re
+
+REF=$ref_file.fields.path;
+THREADS=\${GALAXY_SLOTS:-1};
+
+#if $fastq_input.fastq_input1.is_of_type('fastqsanger')
+#set $ext = ".fq"
+#else
+#set $ext = ".fq.gz"
+#end if
+#if $fastq_input.fastq_input_selector == 'paired'
+    #set $FASTQ_R1='forward' + $ext
+    ln -s $fastq_input.fastq_input1 $FASTQ_R1;
+    #set $FASTQ_R2='reverse'+ $ext
+    ln -s $fastq_input.fastq_input2 $FASTQ_R2;
+
+    echo " [ metagen-fastqc ] Cleaning FASTQ files";
+    trim_galore --paired $FASTQ_R1 $FASTQ_R2 -o . ;
+    #set $filename = os.path.basename($FASTQ_R1)
+    ## ${FASTQ_R1%%_1.fastq*}
+    ## remove extension
+    #set $name=re.sub('\..*$','',$filename)  
+    echo "[ metagen-fastqc ] Mapping files to host genome: \$REF";
+    bwa mem -M -t \${THREADS} \$REF forward\_val_1$ext reverse\_val_2$ext | samtools view -@ \${THREADS} -f 12 -F 256 -uS - -o $name\_both_unmapped.bam ;
+	samtools sort -@ \${THREADS_SAM} -n $name\_both_unmapped.bam -o $name\_both_unmapped_sorted.bam;
+	bedtools bamtofastq -i $name\_both_unmapped_sorted.bam -fq $name\_clean_1.fastq -fq2 $name\_clean_2.fastq;
+	echo "[ metagen-fastqc ] Compressing output files";
+    gzip -c $name\_clean_1.fastq > $forward_clean;
+    gzip -c $name\_clean_2.fastq > $reverse_clean;
+#else
+    #set $FASTQ_R1='forward' + $ext
+    ln -s $fastq_input.fastq_input1 $FASTQ_R1;
+    echo "[ metagen-fastqc ] Cleaning FASTQ files";
+    trim_galore $FASTQ_R1 -o . ;
+    #set $filename = os.path.basename($FASTQ_R1)
+    #set $name=re.sub('\..*$','',$filename)  
+    echo "[ metagen-fastqc ] Mapping files to host genome: \${REF}";
+    bwa mem -M -t \$THREADS \$REF forward_trimmed$ext | samtools view -@ \${THREADS} -f 4 -F 256 -uS - -o forward_unmapped.bam;
+    samtools sort -@ \$THREADS -n forward_unmapped.bam -o forward_unmapped_sorted.bam;
+    bedtools bamtofastq -i forward_unmapped_sorted.bam -fq forward_clean.fastq;
+    echo "[ metagen-fastqc ] Compressing output file";
+    gzip -c forward_clean.fastq > $forward_clean;
+#end if
+
+
+    ]]></command>
+<inputs>
+    <param name="ref_file" type="select" label="Using reference genome" help="Select genome from the list">
+        <options from_data_table="bwa_mem_indexes">
+            <filter type="sort_by" column="2" />
+            <validator type="no_options" message="No indexes are available" />
+        </options>
+        <validator type="no_options" message="A built-in reference genome is not available for the build associated with the selected input file"/>
+    </param>
+    <conditional name="fastq_input">
+        <param name="fastq_input_selector" type="select" label="Single or Paired-end reads" help="Select between paired and single end data">
+            <option value="paired">Paired</option>
+            <option value="single">Single</option>
+        </param>
+        <when value="paired">
+            <param name="fastq_input1" type="data" format="fastqsanger,fastqsanger.gz,fastq.gz" label="Select first set of reads" help="Specify dataset with forward reads"/>
+            <param name="fastq_input2" type="data" format="fastqsanger,fastqsanger.gz,fastq.gz" label="Select second set of reads" help="Specify dataset with reverse reads"/>
+        </when>
+        <when value="single">
+            <param name="fastq_input1" type="data" format="fastqsanger,fastqsanger.gz,fastq.gz" label="Select fastq dataset" help="Specify dataset with single reads"/>
+        </when>
+    </conditional>
+</inputs>
+    <outputs>
+        <data format="fastqsanger.gz" name="forward_clean" label="$fastq_input.fastq_input1.name" />
+        <data name="reverse_clean" format="fastqsanger.gz" label="$fastq_input.fastq_input2.name">
+            <filter> fastq_input['fastq_input_selector'] == "paired"</filter>
+            <action type="format">
+                <option type="from_param" name="fastq_input.fastq_input2" param_attribute="ext" />
+            </action>
+            <actions>
+                  <action type="metadata" name="name">
+                    <option type="from_param" name="fastq_input.fastq_input2" param_attribute="name" />
+                  </action>
+            </actions>
+        </data>
+    </outputs>
+    <help><![CDATA[
+        This tool is based on: https://github.com/Finn-Lab/Metagen-FastQC.
+    ]]></help>
+</tool>

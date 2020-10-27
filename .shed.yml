@@ -1,0 +1,9 @@
+categories:
+- Next Gen Mappers
+description: 'Clean reads mapping to a reference genome'
+long_description: |
+  Map input reads to a reference genome and then remove the mapping reads from the input. Useful to clean human reads from a sample before submission to public repositories.
+name: clean_reads
+owner: ieguinoa
+remote_repository_url: https://github.com/ieguinoa/clean_reads_wrapper
+type: unrestricted
