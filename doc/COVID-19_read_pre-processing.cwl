@@ -11,7 +11,7 @@ inputs:
     type: File
 outputs: {}
 steps:
-  2_Trim Galore!:
+  2_Trim Galore:
     in:
       singlePaired|input_mate1: Forwards reads
       singlePaired|input_mate2: Reverse reads
@@ -37,8 +37,8 @@ steps:
           type: File
   3_Map with BWA-MEM:
     in:
-      fastq_input|fastq_input1: 2_Trim Galore!/trimmed_reads_pair1
-      fastq_input|fastq_input2: 2_Trim Galore!/trimmed_reads_pair2
+      fastq_input|fastq_input1: 2_Trim Galore/trimmed_reads_pair1
+      fastq_input|fastq_input2: 2_Trim Galore/trimmed_reads_pair2
     out:
     - bam_output
     run:
